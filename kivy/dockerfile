@@ -1,4 +1,7 @@
-FROM balenalib/raspberrypi3-debian
+ARG BALENA_ARCH=%%BALENA_ARCH%%
+
+FROM balenalib/$BALENA_ARCH-debian
+ARG BALENA_ARCH=%%BALENA_ARCH%%
 
 RUN [ "cross-build-start" ]
 
