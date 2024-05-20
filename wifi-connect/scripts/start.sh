@@ -18,10 +18,10 @@ while [[ true ]]; do
   # nmcli -t g | grep full
 
   # 3. Is there Internet connectivity via a google ping?
-  wget --spider http://google.com 2>&1
+  # wget --spider http://google.com 2>&1
 
   # 4. Is there an active WiFi connection?
-  # iwgetid -r
+  iwgetid -r
 
   if [ $? -eq 0 ]; then
       printf 'Skipping WiFi Connect\n'
