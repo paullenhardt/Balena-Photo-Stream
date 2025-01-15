@@ -75,7 +75,7 @@ class PhotoSlideShow(Carousel):
         self.photo_loader = photo_loader
         num_slides = max(int(os.environ.get('KIVY_NUM_SLIDES', str(10))), 3)
         for i in range(num_slides):
-            image = AsyncImage(source=self.photo_loader.get_next_image(), allow_stretch=True, nocache=True)
+            image = AsyncImage(source=self.photo_loader.get_next_image(), fit_mode="contain")
             self.add_widget(image)
         # self.start_slides()
         Clock.schedule_interval(self.run_slide_show, 1)
@@ -143,5 +143,9 @@ class CarouselApp(App):
 
 
 if __name__ == '__main__':
+    from kivy.core.window import Window
+    Window.maximize()
+    Window.fullscreen = True
+    print(f"Starting with window size: {Window.size}")
     app = CarouselApp()
     app.run()

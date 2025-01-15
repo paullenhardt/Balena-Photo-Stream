@@ -1,4 +1,7 @@
-FROM balenalib/raspberrypi3-debian
+ARG BALENA_ARCH=%%BALENA_ARCH%%
+
+FROM balenalib/$BALENA_ARCH-debian
+ARG BALENA_ARCH=%%BALENA_ARCH%%
 
 # Get apt-get dependencies.
 RUN apt-get update
@@ -14,9 +17,9 @@ RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
 RUN python3 -m pip install --upgrade pip setuptools
 RUN python3 -m pip install kivy
-RUN python3 -m pip install ffpyplayer
+# RUN python3 -m pip install ffpyplayer
 
-ENV KIVY_VIDEO ffpyplayer
+# ENV KIVY_VIDEO ffpyplayer
 
 WORKDIR /usr/src/app
 
