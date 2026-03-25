@@ -1,3 +1,5 @@
 requests
 pillow
+piexif
 kivy
+object-tracker

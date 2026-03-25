@@ -1,20 +1,26 @@
 # Project Architecture
-This project needs a refactoring.  I would like to remove the depence on Balena and switch to a basic minimal linux with docker containers.
+This project needs a refactoring.  I would like to remove the dependence on Balena and switch to a basic minimal linux with docker containers.
 The project should not be specific for hardware.  It should autodetect as much as possible or support YAML configuration for anything that cannot be detected or needs configuration.
 The project is going to be four main modules.
 
 **Modules**
- 1. Manager module
+ 1. Manager module (New component.  Python?)
     - This will be a service which supports updating and controlling everything.  It will be able to check for new versions of the apps and OS updates.  Depending on settings and schedule, it will update the apps and OS automatically while maintaining a working system (boot environments or similar).  This is a simplification and replication of what balena offers, but without fully relying on balena's services.
- 2. Netbird or other networking VPN service
+ 2. Netbird or other networking VPN service (Off-the-shelf)
     - This supports allowing secure direct connections for monitoring, backups, control, etc.
- 3. Photo Manager App
+ 3. Photo Manager App (Python scripts)
     - This app automatically downloads, monitors, and manages photos on the display.
- 4. User Interface App
-    - This app displays photos and runs the photo UI.  It is intended to provide a settings interface and potentially more custimizable widgets.
-    - Kivy is the UI framework for now.  In order to avoid memory and performance bloat, no browser based solutions are evaluated.
-    - Outstanding question on whether the UI APP is monolithic or whether it should be many apps with a custom X-Window manager/compositor like a bespoke QTile?
-    - It will start as monolithic currently.
+    - Note, this app does not display anything.
+ 4. User Interface App(s)
+    - This app displays photos and runs the photo UI.  It is intended to provide a settings interface and potentially more customizable widgets.
+    - Kivy is the original UI framework.  In order to avoid memory and performance bloat, no browser based solutions are evaluated.  We want the entire system to run in under 500 MB of ram.  Ideally less for possible expansion.
+    - Evaluating possibility of switching to LVGL (with python? or c?). 
+        - This is looking much better than KIVY with much lower level control but yet a better API for widgets and animations.
+        - ~~Can multiple LVGL apps paint to frame buffers with one primary app compositing the framebuffers and passing around inputs?~~
+            - Not worth investigation for now.
+        - Micropython OS? Just came out.  Needs investigation.
+    - ~~Outstanding question on whether the UI APP is monolithic or whether it should be many apps with a custom X-Window manager/compositor like a bespoke QTile?~~
+        - It will start as monolithic currently (at least monolithic in the sense that it all runs in a single container).
 
 ## Manager
 This doesn't yet exist. Everything needs to be done.  As long as a VPN allows direct control, the manager is not *required*, however it will be difficult to go without for long.
@@ -31,5 +37,9 @@ This is a standalone service and is off-the-shelf.  This needs some instruction 
  - Use a YAML file or something for setup (specifying streams, stream types, actions to take on local files, etc)
  - Needs to store full meta data for photos and support EXIF tag reading.
 
- ## Kivy
+ ## User Interface Apps
  The UI needs full rework.  Would like to be able to display photo info when desired on a photo.  The UI needs to support showing settings screen.  More direct control, such as setting wifi password through the UI as well.
+
+
+## Getting LVGL Working
+https://falb18.github.io/tinkering_at_night/archives/2025/rpi-lvgl-demo-drm.html

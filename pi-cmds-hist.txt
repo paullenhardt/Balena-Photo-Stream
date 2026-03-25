@@ -1,0 +1,122 @@
+    1  sudo apt update
+    2  sudo apt install plymouth
+    3  sudo apt install plymouth plymouth-themes
+    4  kmsprint | grep Connector
+    5  sudo nano /boot/firmware/cmdline.txt 
+    6  reboot
+    7  sudo reboot
+    8  kmsprint | grep Connector
+    9  cat /boot/firmware/cmdline.txt 
+   10  echo 100 | sudo tee /sys/class/backlight/*/brightness
+   11  echo 100 | sudo tee /sys/class/backlight/11-0045/brightness 
+   12  echo 0 | sudo tee /sys/class/backlight/11-0045/brightness 
+   13  echo 50 | sudo tee /sys/class/backlight/11-0045/brightness 
+   14  sudo nano /boot/firmware/cmdline.txt 
+   15  sudo reboot
+   16  sudo nano /boot/firmware/cmdline.txt 
+   17  echo 50 | sudo tee /sys/class/backlight/11-0045/brightness 
+   18  echo 100 | sudo tee /sys/class/backlight/11-0045/brightness 
+   19  kmsprint | grep Connector
+   20  cat /sys/kernel/debug/dri/2/name
+   21  cat /sys/kernel/debug/dri/2/state
+   22  cat /boot/firmware/cmdline.txt 
+   23  sudo reboot
+   24  kmsprint | grep Connector
+   25  sudo nano /boot/firmware/cmdline.txt 
+   26  sudo reboot
+   27  sudo nano /boot/firmware/cmdline.txt 
+   28  sudo reboot
+   29  sudo nano /boot/firmware/cmdline.txt 
+   30  kmsprint | grep Connector
+   31  sudo nano /boot/firmware/cmdline.txt 
+   32  kmsprint | grep Connector
+   33  sudo reboot
+   34  kmsprint | grep Connector
+   35  sudo nano /boot/firmware/cmdline.txt 
+   36  sudo reboot
+   37  modetest -c | grep DSI
+   38  kmsprint
+   39  sudo nano /boot/firmware/cmdline.txt 
+   40  sudo nano /boot/firmware/config.txt 
+   41  sudo reboot
+   42  sudo nano /boot/firmware/config.txt 
+   43  sudo nano /boot/firmware/cmdline.txt 
+   44  sudo reboot
+   45  kmsprint
+   46  sudo nano /boot/firmware/cmdline.txt 
+   47  cat /boot/firmware/cmdline.txt 
+   48  sudo reboot
+   49  sudo nano /boot/firmware/cmdline.txt 
+   50  sudo reboot
+   51  kmsprint
+   52  cd /usr/share/plymouth/themes/spinner/
+   53  ls
+   54  cat spinner.plymouth 
+   55  sudo plymouth-set-default-theme spinner -R
+   56  sudo reboot
+   57  sudo raspi-config
+   58  sudo apt-get install plymouth plymouth-themes
+   59  plymouth
+   60  sudo nano /boot/firmware/cmdline.txt 
+   61  sudo plymouth-set-default-theme spinner -R
+   62  sudo reboot
+   63  sudo nano /boot/firmware/cmdline.txt 
+   64  sudo systemctl mask getty@tty1.service
+   65  sudo systemctl mask serial-getty@ttyAMA0.service
+   66  sudo plymouth-set-default-theme spinner
+   67  sudo update-initramfs -u
+   68  sudo reboot
+   69  sudo plymouthd
+   70  plymouth --show-splash
+   71  plymouthd; plymouth --show-splash ; for ((I=0; I<10; I++)); do plymouth --update=test$I ; sleep 1; done; plymouth quit
+   72  su
+   73  sudo plymouthd; plymouth --show-splash ; for ((I=0; I<10; I++)); do plymouth --update=test$I ; sleep 1; done; plymouth quit
+   74  plymouth-set-default-theme --list
+   75  plymouth
+   76  plymouth-set-default-theme spinfinity
+   77  sudo plymouth-set-default-theme spinfinity
+   78  sudo update-initramfs -u
+   79  sudo reboot
+   80  pwd
+   81  mkdir test
+   82  cd test
+   83  git clone https://github.com/lvgl/lvgl.git
+   84  sudo apt-get install git
+   85  sudo apt-get install build-essential
+   86  which gcc
+   87  which cmake
+   88  sudo apt-get install cmake
+   89  sudo apt-get install ninja-build
+   90  git clone https://github.com/lvgl/lvgl.git
+   91  git clone https://github.com/lvgl/lv_drivers.git
+   92  nano main.c
+   93  cat main.c
+   94  nano CMakeLists.txt
+   95  mkdir build
+   96  cd build
+   97  cmake ..
+   98  cd ..
+   99  ls
+  100  ls lvgl/
+  101  cp lvgl/lv_conf_template.h ./lv_conf.h
+  102  nano lv_conf.h 
+  103  cd build/
+  104  cmake ..
+  105  cd ../lvgl/
+  106  la
+  107  ls
+  108  cd examples/
+  109  ls
+  110  cd ..
+  111  ls src/
+  112  cd ..
+  113  cd ,,
+  114  cd ..
+  115  rm -Rf test
+  116  ls
+  117  ls -al
+  118  sudo shutdown
+  119  sudo poweroff
+  120  echo 50 | sudo tee /sys/class/backlight/11-0045/brightness 
+  121  echo 0 | sudo tee /sys/class/backlight/11-0045/brightness 
+  122  history > hist.txt
