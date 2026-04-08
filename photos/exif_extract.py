@@ -31,7 +31,10 @@ codec = 'ISO-8859-1'  # or latin-1
 def exif_to_tag(exif_dict):
     exif_tag_dict = {}
     thumbnail = exif_dict.pop('thumbnail')
-    exif_tag_dict['thumbnail'] = thumbnail.decode(codec)
+    try:
+        exif_tag_dict['thumbnail'] = thumbnail.decode(codec)
+    except AttributeError:
+        ...
 
     for ifd in exif_dict:
         exif_tag_dict[ifd] = {}

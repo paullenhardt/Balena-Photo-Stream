@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Self
-from .CloudDownloadMixin import CloudDownloadMixin
+from collections.abc import Callable
 
 class AssetType(Enum):
     NONE = 0
@@ -12,14 +12,24 @@ class AssetType(Enum):
 
 
 @dataclass
-class StreamAsset(CloudDownloadMixin[Self]):
+class StreamAsset:
     id: str | None = None
+    post_id: str | None = None
     creation_date: datetime | None = None
+    caption: str | None = None
     derivatives: dict[str, StreamAssetDerivative] = field(default_factory=dict)
     preferred_derivative: str | None = None
     type: AssetType = AssetType.PHOTO
     exif: dict[str, any] = field(default_factory=dict)
     _dirty: bool = False
+    _cloud_download: Callable[[Self, Path], None] | None = None
+
+    def cloud_download(self, data_dir: Path | None = None):
+        if self._cloud_download:
+            self._cloud_download(self, data_dir)
+
+    def set_cloud_download_func(self, download_func: Callable[[Self, Path | None], None]):
+        self._cloud_download = download_func
 
 @dataclass
 class StreamAssetDownload:

@@ -5,6 +5,8 @@ import io
 import os
 from pathlib import Path
 from PIL import Image
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from copy import deepcopy
 from .PhotoUtilities import get_exif_data
 from .Stream import Stream
@@ -13,10 +15,16 @@ from .StreamAsset import *
 
 ICLOUD_API_URL_FORMAT = "https://p23-sharedstreams.icloud.com/{}/sharedstreams"
 
-EXTENSION_MATCHER = re.compile(r"/[\w_\-\+\%\.]+\.(\w+)\?")
+EXTENSION_MATCHER = re.compile(r"/([\w_\-\+\%\.]+\.(\w+))\?")
 
 POSTER_FRAME = "PosterFrame"
 
+UTC_TZ = ZoneInfo("utc")
+
+def init_stream_as_icloud(stream: Stream):
+    stream.set_cloud_update_func(update_from_cloud)
+    stream.set_cloud_download_func(download_asset)
+    stream.update_asset_cloud_download_func()
 
 def update_from_cloud(stream: Stream):
     # If the stream doesn't have an ID, return
@@ -44,14 +52,14 @@ def update_from_cloud(stream: Stream):
 
     stream_meta_data = response.json()
     # Process the Stream meta data and update the stream object (Currently it blindly updates)
-    process_stream(stream, stream_meta_data)
+    _process_stream(stream, stream_meta_data)
     
     # Need to track "dirty" flags for items to know what to update in the DB
     # Perhaps as each item is "updated" compare it against a previous deepcopy version and if different, flag as dirty
     # Process over every post and asset in the stream
     for item in stream_meta_data.get("photos", list()):
-        post_item = process_post(stream, item)
-        asset_item = process_asset(stream, item, post_item)
+        post_item = _process_post(stream, item)
+        asset_item = _process_asset(stream, item, post_item)
     
     # Currently this pulls URLs for EVERY photo in the stream, this may not be needed
     photo_guids = {
@@ -82,24 +90,29 @@ def update_from_cloud(stream: Stream):
                 download_item.url_path = url_path
             url_expiry = download_dict.get("url_expiry", None)
             if url_expiry:
-                download_item.url_expiry = datetime.fromisoformat(url_expiry)
+                download_item.url_expiry = datetime.fromisoformat(url_expiry).replace(tzinfo=UTC_TZ)
             search = EXTENSION_MATCHER.search(url_path)
             if search:
-                download_item.file_name = search.group(1)
-            if derivative.download and derivative.download != download_item:
-                derivative.download = download_item
+                download_item.file_name = search.group(1).lower()
+            if derivative.download and derivative.download.file_name != download_item.file_name:
                 derivative._dirty = True
+            # Update regardless of dirty as we don't track all items such as download URLs which expire
+            derivative.download = download_item
 
+    # Propagate any functions as needed.
+    stream.update_asset_cloud_download_func()
 
-def process_stream(stream: Stream, stream_meta_data):
-    if "streamName" in stream_meta_data:
+def _process_stream(stream: Stream, stream_meta_data):
+    if "streamName" in stream_meta_data and stream_meta_data["streamName"] != stream.name:
         stream.name = stream_meta_data["streamName"]
         stream._dirty = True
     if "userFirstName" in stream_meta_data and "userLastName" in stream_meta_data:
-        stream.owner = "{} {}".format(stream_meta_data["userFirstName"], stream_meta_data["userLastName"])
-        stream._dirty = True
+        owner = "{} {}".format(stream_meta_data["userFirstName"], stream_meta_data["userLastName"])
+        if stream.owner != owner:
+            stream.owner = owner
+            stream._dirty = True
 
-def process_post(stream: Stream, item: dict[str, any]):
+def _process_post(stream: Stream, item: dict[str, any]):
     post_item: StreamPost | None = None
     post_id = item.get("batchGuid", None)
     # Check if the post is already part of the stream
@@ -111,21 +124,17 @@ def process_post(stream: Stream, item: dict[str, any]):
             # create a new post and add it to the stream
             post_item = StreamPost()
             stream.posts[post_id] = post_item
+            post_item.id = post_id
             stream._dirty = True
     # Ensure the post is up-to-date with the cloud
     # Grab times and convert
     batch_time = item.get("batchDateCreated", None)
     try:
-        post_date = datetime.fromisoformat(batch_time)
+        post_date = datetime.fromisoformat(batch_time).replace(tzinfo=UTC_TZ)
     except:
         post_date = None
     if post_date and post_item and (post_item.post_date != post_date):
         post_item.post_date = post_date
-        post_item._dirty = True
-    # Check caption for changes
-    caption = item.get("caption", None)
-    if caption and post_item and (post_item.caption != caption):
-        post_item.caption = caption
         post_item._dirty = True
     contributor = item.get("contributorFullName", None)
     if contributor and post_item and (post_item.contributor != contributor):
@@ -133,7 +142,7 @@ def process_post(stream: Stream, item: dict[str, any]):
         post_item._dirty = True
     return post_item
 
-def process_asset(stream: Stream, item: dict[str, any], post_item: StreamPost):
+def _process_asset(stream: Stream, item: dict[str, any], post_item: StreamPost):
     asset_item: StreamAsset | None = None
     asset_id = item.get("photoGuid", None)
     # Check if the asset is already part of the stream
@@ -145,15 +154,25 @@ def process_asset(stream: Stream, item: dict[str, any], post_item: StreamPost):
             # create a new asset and add it to the stream
             asset_item = StreamAsset()
             stream.assets[asset_id] = asset_item
+            asset_item.id = asset_id
             stream._dirty = True
             if post_item and (not asset_id in post_item.asset_ids):
                 post_item.asset_ids.add(asset_id)
-                post_item._dirty = True
+                # Not dirty as we don't persist the asset ids with the post
+                # post_item._dirty = True
     # Ensure the asset is up-to-date with the cloud
-    # Create function that takes in the item dict and the asset_item and updates it along with updating the derivatives
+    post_id = post_item.id
+    if post_id and (asset_item.post_id != post_id):
+        asset_item.post_id = post_id
+        asset_item._dirty = True
+    # Check caption for changes
+    caption = item.get("caption", None)
+    if caption and asset_item and (asset_item.caption != caption):
+        asset_item.caption = caption
+        asset_item._dirty = True
     date_created = item.get("dateCreated", None)
     try:
-        creation_date = datetime.fromisoformat(date_created)
+        creation_date = datetime.fromisoformat(date_created).replace(tzinfo=UTC_TZ)
     except:
         creation_date = None
     if creation_date and asset_item and (asset_item.creation_date != creation_date):
@@ -216,7 +235,6 @@ def process_asset(stream: Stream, item: dict[str, any], post_item: StreamPost):
         
     return asset_item
 
-
 def download_asset(asset: StreamAsset, data_dir: Path | None = None):
     # TODO: Check for previous download by verifying the hash?
     # Use a default if no data_dir is passed
@@ -233,7 +251,7 @@ def download_asset(asset: StreamAsset, data_dir: Path | None = None):
     if download_request.status_code == 200:
         byte_file = io.BytesIO(download_request.content)
         asset_dir = data_dir / Path(derivative.hash[-2:])
-        asset_save_path = asset_dir / Path(derivative.hash + "." + derivative.download.file_name)
+        asset_save_path = asset_dir / Path(derivative.hash + "." + derivative.download.file_name.lower())
         if not os.path.exists(asset_dir):
             os.makedirs(asset_dir)
         with open(asset_save_path, "wb") as fid:

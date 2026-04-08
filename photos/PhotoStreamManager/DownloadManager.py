@@ -5,6 +5,7 @@ from collections.abc import Callable
 from queue import Queue, Empty
 from .Stream import Stream
 from .StreamAsset import *
+from .PersistenceManager import PersistenceManager
 
 
 class DownloadManager(Thread):
@@ -22,13 +23,18 @@ class DownloadManager(Thread):
         self.download_path: Path = download_path
         self.cloud_refresh: bool = cloud_refresh
         self.asset_download: bool = asset_download
-        self._streams: list[Stream] = []
+        self._streams: dict[str, Stream] = {}
         self._asset_queue: Queue[StreamAsset] = Queue()
+        self._persistence_manager: PersistenceManager | None = None
 
     def add_stream(self, stream: Stream) -> None:
-        self._streams.append(stream)
+        if stream.id not in self._streams:
+            self._streams[stream.id] = stream
 
     def run(self) -> None:
+        # Create Persistence Manager on the run thread.
+        self._persistence_manager = PersistenceManager()
+        self._streams.update(self._persistence_manager.load_streams())
         # Delay between all subsequent checks
         while not self.stopped.is_set():
             self._process_stream_updates() if self.cloud_refresh else ()
@@ -45,25 +51,27 @@ class DownloadManager(Thread):
                     asset.cloud_download(data_dir=self.download_path)
 
                     # persist asset changes to storage
+                    if asset._dirty:
+                        self._persist_stream_changes()
                     ...
 
             # Delay until the stopped flag is raised or until we hit the delay time
             self.stopped.wait(self.delay)
 
     def _process_stream_updates(self):
-        for stream in self._streams:
+        for stream in self._streams.values():
             stream.cloud_update()
-            # I do not like this... There should be an easier way to setup the calls
-            for asset in stream.assets.values():
-                asset.set_cloud_download_func(stream._cloud_download)
+            stream.update_asset_cloud_download_func()
 
     def _persist_stream_changes(self):
         # Persist stream changes to storage
+        for stream in self._streams.values():
+            self._persistence_manager.persist_stream(stream)
         ...
 
     def _queue_assets_for_download(self):
         # Find and add all assets from stream that need to be downloaded to queue
-        for stream in self._streams:
+        for stream in self._streams.values():
             for asset in stream.assets.values():
                 if (
                     asset.preferred_derivative

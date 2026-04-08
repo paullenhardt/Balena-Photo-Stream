@@ -4,8 +4,8 @@ import time
 import json
 from pathlib import Path
 import photo_env
-from PhotoStreamManager import DownloadManager, SharedPhotoStreamDownloader
-from PhotoStreamManager import Stream, StreamPost, StreamAsset, iCloudSharedPhotoStream
+from PhotoStreamManager.DownloadManager import DownloadManager
+from PhotoStreamManager import Stream, iCloudSharedPhotoStream
 
 def main():
     input_url = photo_env.shared_url
@@ -20,10 +20,8 @@ def main():
 
     # This should happen within the Download Manager or Persistence Manager
     # Load stream(s) from storage or Config
-    stream = Stream.Stream()
-    stream.id_from_url(photo_env.shared_url)
-    stream.set_cloud_update_func(iCloudSharedPhotoStream.update_from_cloud)
-    stream.set_cloud_download_func(iCloudSharedPhotoStream.download_asset)
+    stream = Stream.Stream(id=photo_env.stream_id)
+    iCloudSharedPhotoStream.init_stream_as_icloud(stream)
 
     download_manager.add_stream(stream)
 
