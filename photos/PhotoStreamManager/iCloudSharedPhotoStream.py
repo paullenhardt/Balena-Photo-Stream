@@ -3,6 +3,7 @@ import json
 import re
 import io
 import os
+import time
 from pathlib import Path
 from PIL import Image
 from datetime import datetime
@@ -30,9 +31,13 @@ def update_from_cloud(stream: Stream):
     # If the stream doesn't have an ID, return
     if not stream.id:
         return
+    if stream.url:
+        base_url = stream.url
+    else:
+        base_url = ICLOUD_API_URL_FORMAT.format(stream.id)
 
-    base_url = ICLOUD_API_URL_FORMAT.format(stream.id)
-
+    start = time.time()
+    print(f"Making request for Photo Stream {base_url}.")
     response = requests.post(
         base_url + "/webstream",
         data='{"streamCtag":null}',
@@ -41,14 +46,20 @@ def update_from_cloud(stream: Stream):
     # Handle Redirects to different servers.
     if 300 <= response.status_code < 400:
         host = response.json().get("X-Apple-MMe-Host", None)
+        print(f"Got redirect response on photo stream ({host}) {response.json()}")
         if host:
             base_url = "https://{}/{}/sharedstreams".format(host, stream.id)
+            stream.url = base_url
+            stream._dirty = True
         # Retry the request with the new URL
+        print(f"Making request for Photo Stream {base_url}.")
         response = requests.post(
             base_url + "/webstream",
             data='{"streamCtag":null}',
             headers={"Content-Type": "application/json"},
         )
+    stop = time.time()
+    print(f"Got response for Photo Stream in {stop-start}")
 
     stream_meta_data = response.json()
     # Process the Stream meta data and update the stream object (Currently it blindly updates)
@@ -62,22 +73,40 @@ def update_from_cloud(stream: Stream):
         asset_item = _process_asset(stream, item, post_item)
     
     # Currently this pulls URLs for EVERY photo in the stream, this may not be needed
-    photo_guids = {
-        "photoGuids": [
-            x.get("photoGuid", "0") for x in stream_meta_data.get("photos", [])
-        ]
-    }
-    photo_guids_json = json.dumps(photo_guids)
-    response = requests.post(
-        base_url + "/webasseturls",
-        data=photo_guids_json,
-        headers={"Content-Type": "application/json"},
-    )
-    photo_urls = response.json()
-    photo_urls_dict = photo_urls.get("items", {})
+    # photo_guids = {
+    #     "photoGuids": [
+    #         x.get("photoGuid", "0") for x in stream_meta_data.get("photos", [])
+    #     ]
+    # }
+    photo_guids_list = []
+    for guid, asset in stream.assets.items():
+        preferred_derivative = asset.derivatives.get(asset.preferred_derivative, None)
+        if not preferred_derivative or not preferred_derivative.downloaded:
+            photo_guids_list.append(guid)
+    
+    photo_urls_dict = {}
+    print(f"Photo Guid Request for {len(photo_guids_list)} photos.")
+    if photo_guids_list:
+        print("Making request for photo download URLs.")
+        photo_guids = {"photoGuids": photo_guids_list}
+        photo_guids_json = json.dumps(photo_guids)
+        response = requests.post(
+            base_url + "/webasseturls",
+            data=photo_guids_json,
+            headers={"Content-Type": "application/json"},
+        )
+        photo_urls = response.json()
+        photo_urls_dict = photo_urls.get("items", {})
+        print("Got response for photo download URLs.")
 
     # Iterate over all assets and update derivatives with download links
     for asset_id in stream.assets:
+        preferred_derivative = stream.assets[asset_id].derivatives.get(stream.assets[asset_id].preferred_derivative, None)
+        if preferred_derivative and preferred_derivative.downloaded:
+            # Don't bother updating if it has already been downloaded
+            continue
+
+        # Update download links
         for derivative_key in stream.assets[asset_id].derivatives:
             derivative = stream.assets[asset_id].derivatives[derivative_key]
             download_item = StreamAssetDownload()
@@ -86,14 +115,15 @@ def update_from_cloud(stream: Stream):
             if url_location:
                 download_item.url_location = url_location
             url_path = download_dict.get("url_path", None)
+            search = None
             if url_path:
                 download_item.url_path = url_path
+                search = EXTENSION_MATCHER.search(url_path)
+            if search:
+                download_item.file_name = search.group(1).lower()
             url_expiry = download_dict.get("url_expiry", None)
             if url_expiry:
                 download_item.url_expiry = datetime.fromisoformat(url_expiry).replace(tzinfo=UTC_TZ)
-            search = EXTENSION_MATCHER.search(url_path)
-            if search:
-                download_item.file_name = search.group(1).lower()
             if derivative.download and derivative.download.file_name != download_item.file_name:
                 derivative._dirty = True
             # Update regardless of dirty as we don't track all items such as download URLs which expire

@@ -26,7 +26,11 @@ def exif_to_tag(exif_dict):
     return exif_tag_dict
 
 def get_exif_data(image: Image) -> dict[str, any]:
-    exif_dict = piexif.load(image.info.get('exif'))
-    exif_dict = exif_to_tag(exif_dict)
+    exif_dict = {}
+    try:
+        exif_dict = piexif.load(image.info.get('exif'))
+        exif_dict = exif_to_tag(exif_dict)
+    except:
+        ...
 
     return exif_dict

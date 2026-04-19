@@ -18,6 +18,7 @@ cursor.execute('''
 """
 UTC_TZ = ZoneInfo("utc")
 STREAM_TYPE_MAP = {
+    StreamType.NONE: lambda : (),
     StreamType.ICLOUD_SHARED_STREAM: iCloudSharedPhotoStream.init_stream_as_icloud
 }
 
@@ -32,6 +33,7 @@ class PersistenceManager:
 
     def init_db(self):
         with sqlite3.connect(self._db_path) as connection:
+            connection.row_factory = sqlite3.Row
             self._cursor = connection.cursor()
             self._cursor.execute("PRAGMA journal_mode = WAL")
             self._cursor.execute("PRAGMA foreign_keys = ON")
@@ -136,6 +138,7 @@ class PersistenceManager:
             cursor = connection_input.cursor()
         else:
             connection = sqlite3.connect(self._db_path)
+            connection.row_factory = sqlite3.Row
             cursor = connection.cursor()
 
         # Update the stream if it is dirty
@@ -144,11 +147,11 @@ class PersistenceManager:
                         INSERT INTO streams (stream_id, name, type, owner, enabled, url) VALUES (?, ?, ?, ?, ?, ?)
                         ON CONFLICT(stream_id) 
                         DO UPDATE SET 
-                        name = excluded.name, 
-                        type = excluded.type,
-                        owner = excluded.owner,
-                        enabled = excluded.enabled,
-                        url = excluded.url
+                        name    = COALESCE(excluded.name, streams.name), 
+                        type    = COALESCE(excluded.type, streams.type),
+                        owner   = COALESCE(excluded.owner, streams.owner),
+                        enabled = COALESCE(excluded.enabled, streams.enabled),
+                        url     = COALESCE(excluded.url, streams.url)
                     """
             cursor.execute(
                 query,
@@ -184,6 +187,7 @@ class PersistenceManager:
             cursor = connection_input.cursor()
         else:
             connection = sqlite3.connect(self._db_path)
+            connection.row_factory = sqlite3.Row
             cursor = connection.cursor()
 
         if post._dirty:
@@ -191,8 +195,8 @@ class PersistenceManager:
                         INSERT INTO posts (post_id, stream_id, date, contributor) VALUES (?, ?, datetime(?), ?)
                         ON CONFLICT(post_id, stream_id) 
                         DO UPDATE SET 
-                        date = excluded.date,
-                        contributor = excluded.contributor
+                        date        = COALESCE(excluded.date, posts.date),
+                        contributor = COALESCE(excluded.contributor, posts.contributor)
                     """
             cursor.execute(
                 query,
@@ -220,6 +224,7 @@ class PersistenceManager:
             cursor = connection_input.cursor()
         else:
             connection = sqlite3.connect(self._db_path)
+            connection.row_factory = sqlite3.Row
             cursor = connection.cursor()
 
         if asset._dirty:
@@ -228,11 +233,11 @@ class PersistenceManager:
                         VALUES (?, ?, ?, datetime(?), ?, ?, ?, ?)
                         ON CONFLICT(asset_id, stream_id, post_id) 
                         DO UPDATE SET
-                        creation_date = excluded.creation_date, 
-                        caption = excluded.caption,
-                        preferred_derivative = excluded.preferred_derivative, 
-                        type = excluded.type, 
-                        exif = excluded.exif
+                        creation_date        = COALESCE(excluded.creation_date, assets.creation_date), 
+                        caption              = COALESCE(excluded.caption, assets.caption),
+                        preferred_derivative = COALESCE(excluded.preferred_derivative, assets.preferred_derivative), 
+                        type                 = COALESCE(excluded.type, assets.type), 
+                        exif                 = COALESCE(excluded.exif, assets.exif)
                     """
             cursor.execute(
                 query,
@@ -271,6 +276,7 @@ class PersistenceManager:
             cursor = connection_input.cursor()
         else:
             connection = sqlite3.connect(self._db_path)
+            connection.row_factory = sqlite3.Row
             cursor = connection.cursor()
 
         if derivative._dirty:
@@ -280,14 +286,14 @@ class PersistenceManager:
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT(derivative_id, name, asset_id)
                         DO UPDATE SET 
-                        post_id = excluded.post_id,
-                        stream_id = excluded.stream_id,
-                        width = excluded.width,
-                        height = excluded.height,
-                        file_size = excluded.file_size,
-                        downloaded = excluded.downloaded,
-                        filepath = excluded.filepath,
-                        file_name = excluded.file_name
+                        post_id    = COALESCE(excluded.post_id, derivatives.post_id),
+                        stream_id  = COALESCE(excluded.stream_id, derivatives.stream_id),
+                        width      = COALESCE(excluded.width, derivatives.width),
+                        height     = COALESCE(excluded.height, derivatives.height),
+                        file_size  = COALESCE(excluded.file_size, derivatives.file_size),
+                        downloaded = COALESCE(excluded.downloaded, derivatives.downloaded),
+                        filepath   = COALESCE(excluded.filepath, derivatives.filepath),
+                        file_name  = COALESCE(excluded.file_name, derivatives.file_name)
                     """
             cursor.execute(
                 query,
@@ -319,6 +325,7 @@ class PersistenceManager:
             cursor = connection_input.cursor()
         else:
             connection = sqlite3.connect(self._db_path)
+            connection.row_factory = sqlite3.Row
             cursor = connection.cursor()
         streams = {}
         # Select ALL Streams from the streams table
@@ -334,8 +341,7 @@ class PersistenceManager:
                     streams;
                 """
         cursor.execute(query)
-        results = cursor.fetchall()
-        for stream_data in results:
+        while stream_data:= cursor.fetchone():
             stream = Stream(
                 id=stream_data[0],
                 name=stream_data[1],
@@ -367,6 +373,7 @@ class PersistenceManager:
             cursor = connection_input.cursor()
         else:
             connection = sqlite3.connect(self._db_path)
+            connection.row_factory = sqlite3.Row
             cursor = connection.cursor()
         assets = {}
         # Select ALL assets from the assets table for our particular stream
@@ -385,8 +392,7 @@ class PersistenceManager:
                     assets.stream_id = ?;
                 """
         cursor.execute(query, (stream.id,))
-        results = cursor.fetchall()
-        for asset_data in results:
+        while asset_data:= cursor.fetchone():
             asset = StreamAsset(
                 id=asset_data[0],
                 post_id=asset_data[1],
@@ -416,6 +422,7 @@ class PersistenceManager:
             cursor = connection_input.cursor()
         else:
             connection = sqlite3.connect(self._db_path)
+            connection.row_factory = sqlite3.Row
             cursor = connection.cursor()
         posts = {}
         # Select ALL posts from the posts table for our particular stream
@@ -430,8 +437,10 @@ class PersistenceManager:
                     posts.stream_id = ?;
                 """
         cursor.execute(query, (stream.id,))
-        results = cursor.fetchall()
-        for post_id, post_date, contributor in results:
+        while post_data:= cursor.fetchone():
+            post_id = post_data['post_id']
+            post_date = post_data['date']
+            contributor = post_data['contributor']
             post = StreamPost(
                 id=post_id,
                 post_date=datetime.fromisoformat(post_date).replace(tzinfo=UTC_TZ),
@@ -453,6 +462,7 @@ class PersistenceManager:
             cursor = connection_input.cursor()
         else:
             connection = sqlite3.connect(self._db_path)
+            connection.row_factory = sqlite3.Row
             cursor = connection.cursor()
         derivatives = {}
         # Select ALL posts from the posts table for our particular stream
@@ -472,27 +482,17 @@ class PersistenceManager:
                     derivatives.asset_id = ?;
                 """
         cursor.execute(query, (asset.id,))
-        results = cursor.fetchall()
-        for (
-            derivative_id,
-            name,
-            width,
-            height,
-            file_size,
-            downloaded,
-            filepath,
-            file_name,
-        ) in results:
+        while derivative_data:= cursor.fetchone():
             derivative = StreamAssetDerivative(
-                hash=derivative_id,
-                width=width,
-                height=height,
-                file_size=file_size,
-                downloaded=bool(downloaded),
-                filepath=filepath,
+                hash=derivative_data["derivative_id"],
+                width=derivative_data["width"],
+                height=derivative_data["height"],
+                file_size=derivative_data["file_size"],
+                downloaded=bool(derivative_data["downloaded"]),
+                filepath=derivative_data["filepath"],
             )
-            derivative.download.file_name = file_name
-            derivatives[name] = derivative
+            derivative.download.file_name = derivative_data["file_name"]
+            derivatives[derivative_data["name"]] = derivative
         if connection_input is None:
             connection.close()
         return derivatives

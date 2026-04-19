@@ -34,12 +34,26 @@ class DownloadManager(Thread):
     def run(self) -> None:
         # Create Persistence Manager on the run thread.
         self._persistence_manager = PersistenceManager()
+        start = time.time()
         self._streams.update(self._persistence_manager.load_streams())
+        stop = time.time()
+        print(f'Loading from DB took {stop-start} seconds.')
         # Delay between all subsequent checks
         while not self.stopped.is_set():
+            start = time.time()
             self._process_stream_updates() if self.cloud_refresh else ()
+            stop = time.time()
+            print(f'Loading stream updates took {stop-start} seconds.')
+
+            start = time.time()
             self._persist_stream_changes()
+            stop = time.time()
+            print(f'Persisting stream changes took {stop-start} seconds.')
+
+            start = time.time()
             self._queue_assets_for_download() if self.asset_download else ()
+            stop = time.time()
+            print(f'Queuing assets for download took {stop-start} seconds.')
 
             while not self._asset_queue.empty() and not self.stopped.is_set():
                 try:
